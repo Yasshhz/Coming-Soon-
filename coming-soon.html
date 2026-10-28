@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Coming soon!</title>
+<style>
+:root {
+  --bg: #fbfbfa; --fg: #1d1d1f; --muted: #6b6b70; --line: #d9d9d6; --card: #ffffff; --accent: #1d1d1f; --accent-fg: #ffffff;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#151516; --fg:#f2f2f0; --muted:#9a9a9f; --line:#3a3a3d; --card:#1e1e20; --accent:#f2f2f0; --accent-fg:#151516; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg:#151516; --fg:#f2f2f0; --muted:#9a9a9f; --line:#3a3a3d; --card:#1e1e20; --accent:#f2f2f0; --accent-fg:#151516; color-scheme: dark; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; display:flex; align-items:center; justify-content:center; }
+[hidden] { display: none !important; }
+#home { background:none; border:0; color:inherit; font:inherit; cursor:pointer; padding:1rem; }
+#home h1 { font-size: clamp(2rem, 8vw, 4.5rem); font-weight:300; letter-spacing:-0.02em; margin:0; }
+#home:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
+.box { width: min(92vw, 380px); background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 28px 24px; box-sizing: border-box; }
+.box h2 { margin: 0 0 20px; font-size: 1.35rem; font-weight: 500; }
+label { display:block; font-size:.9rem; margin-bottom:6px; color: var(--muted); }
+input { width:100%; box-sizing:border-box; padding:12px; font-size:1rem; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); margin-bottom:16px; }
+.btn { width:100%; padding:12px; font-size:1rem; border:0; border-radius:8px; background:var(--accent); color:var(--accent-fg); cursor:pointer; }
+.btn:disabled { opacity:.5; cursor:default; }
+.back { background:none; border:0; color:var(--muted); cursor:pointer; margin-top:14px; font-size:.9rem; padding:0; }
+#msg { margin:12px 0 0; font-size:.9rem; min-height:1.2em; }
+.err { color:#c0392b; }
+#list { margin-top:18px; border-top:1px solid var(--line); padding-top:12px; font-size:.9rem; max-height:180px; overflow-y:auto; }
+#list div { padding:4px 0; }
+</style>
+</head>
+<body>
+<button id="home" type="button"><h1>Coming soon!</h1></button>
+
+<main class="box" id="reg" hidden>
+  <h2>Register</h2>
+  <div id="formWrap">
+    <label for="name">User name</label>
+    <input id="name" autocomplete="name" maxlength="80">
+    <label for="mobile">Registered mobile number</label>
+    <input id="mobile" type="tel" inputmode="tel" autocomplete="tel" maxlength="20">
+    <button class="btn" id="submit" type="button">Submit</button>
+    <p id="msg" role="status"></p>
+  </div>
+  <button class="back" id="back" type="button">Back</button>
+  <div id="list" hidden></div>
+</main>
+
+<script>
+var home = document.getElementById('home'), reg = document.getElementById('reg');
+function route() {
+  var onReg = location.hash === '#register';
+  home.hidden = onReg; reg.hidden = !onReg;
+}
+home.onclick = function(){ location.hash = 'register'; route(); };
+document.getElementById('back').onclick = function(){ location.hash = ''; route(); };
+window.addEventListener('hashchange', route); route();
+
+var db = null, user = null;
+(async function(){
+  try { db = await claude.use('db'); user = await claude.use('user'); } catch(e) {}
+  try { if (db && user && user.isOwner()) showList(); } catch(e) {}
+})();
+
+function setMsg(t, bad){ var m=document.getElementById('msg'); m.textContent=t; m.className = bad ? 'err' : ''; }
+
+document.getElementById('submit').onclick = async function(){
+  var name = document.getElementById('name').value.trim();
+  var mobile = document.getElementById('mobile').value.trim();
+  if (!name) return setMsg('Enter your user name.', true);
+  if (!/^\+?[0-9 \-]{7,15}$/.test(mobile)) return setMsg('Enter a valid mobile number.', true);
+  if (!db || !user) return setMsg('Sign in to claude.ai to submit.', true);
+  var btn = this; btn.disabled = true; setMsg('Sending…');
+  try {
+    var id = await user.id();
+    await db.doc('registrations/' + id).set({ name: name, mobile: mobile, at: new Date().toISOString() });
+    document.getElementById('formWrap').innerHTML = '<p>Thank you, ' + name.replace(/[<>&]/g,'') + '. Your details were received.</p>';
+  } catch(e) { btn.disabled = false; setMsg('Could not send. Please try again.', true); }
+};
+
+async function showList(){
+  var el = document.getElementById('list'); el.hidden = false;
+  db.collection('registrations').orderBy('at','desc').onSnapshot(function(snap){
+    el.textContent = '';
+    var docs = snap.docs || [];
+    if (!docs.length) { el.textContent = 'No registrations yet.'; return; }
+    docs.forEach(function(d){ var v = d.data(); var row = document.createElement('div'); row.textContent = v.name + ' — ' + v.mobile; el.appendChild(row); });
+  });
+}
+</script>
+</body>
+</html>
